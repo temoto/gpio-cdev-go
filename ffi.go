@@ -4,9 +4,15 @@ import (
 	"fmt"
 )
 
+// struct gpiochip_info - Information about a certain GPIO chip
 type ChipInfo struct {
-	Name  [32]byte
+	// the Linux kernel name of this GPIO chip
+	Name [32]byte
+
+	// a functional name for this GPIO chip, such as a product number, may be NULL
 	Label [32]byte
+
+	// number of GPIO lines on this chip
 	Lines uint32
 }
 
@@ -18,33 +24,45 @@ func (self *ChipInfo) String() string {
 type LineFlag uint32
 
 const (
-	GPIOLINE_FLAG_KERNEL      LineFlag = 1 << 0
+	GPIOLINE_FLAG_KERNEL      LineFlag = 1 << 0 /* Line used by the kernel */
 	GPIOLINE_FLAG_IS_OUT      LineFlag = 1 << 1
 	GPIOLINE_FLAG_ACTIVE_LOW  LineFlag = 1 << 2
 	GPIOLINE_FLAG_OPEN_DRAIN  LineFlag = 1 << 3
 	GPIOLINE_FLAG_OPEN_SOURCE LineFlag = 1 << 4
 )
 
+// struct gpioline_info - Information about a certain GPIO line
 type LineInfo struct {
+	// the local offset on this GPIO device, fill this in when
+	// requesting the line information from the kernel
 	LineOffset uint32
-	Flags      uint32
-	Name       [32]byte
-	Consumer   [32]byte
+
+	Flags LineFlag
+
+	// the name of this GPIO line, such as the output pin of the line on the
+	// chip, a rail or a pin header name on a board, as specified by the gpio
+	// chip, may be NULL
+	Name [32]byte
+
+	// a functional name for the consumer of this GPIO line as set by
+	// whatever is using it, will be NULL if there is no current user but may
+	// also be NULL if the consumer doesn't set this up
+	Consumer [32]byte
 }
 
 const GPIOHANDLES_MAX = 64
 
-type HandleFlag uint32
+type RequestFlag uint32
 
 const (
-	GPIOHANDLE_REQUEST_INPUT       HandleFlag = 1 << 0
-	GPIOHANDLE_REQUEST_OUTPUT      HandleFlag = 1 << 1
-	GPIOHANDLE_REQUEST_ACTIVE_LOW  HandleFlag = 1 << 2
-	GPIOHANDLE_REQUEST_OPEN_DRAIN  HandleFlag = 1 << 3
-	GPIOHANDLE_REQUEST_OPEN_SOURCE HandleFlag = 1 << 4
+	GPIOHANDLE_REQUEST_INPUT       RequestFlag = 1 << 0
+	GPIOHANDLE_REQUEST_OUTPUT      RequestFlag = 1 << 1
+	GPIOHANDLE_REQUEST_ACTIVE_LOW  RequestFlag = 1 << 2
+	GPIOHANDLE_REQUEST_OPEN_DRAIN  RequestFlag = 1 << 3
+	GPIOHANDLE_REQUEST_OPEN_SOURCE RequestFlag = 1 << 4
 )
 
-// Information about a GPIO handle request
+// struct gpiohandle_request - Information about a GPIO handle request
 type HandleRequest struct {
 	// an array of desired lines, specified by offset index for the associated GPIO device
 	LineOffsets [GPIOHANDLES_MAX]uint32
@@ -56,7 +74,7 @@ type HandleRequest struct {
 	// flags set, request them one by one. It is possible to select
 	// a batch of input or output lines, but they must all have the same
 	// characteristics, i.e. all inputs or all outputs, all active low etc
-	Flags HandleFlag
+	Flags RequestFlag
 
 	// if the GPIOHANDLE_REQUEST_OUTPUT is set for a requested
 	// line, this specifies the default output value, should be 0 (low) or
@@ -76,24 +94,25 @@ type HandleRequest struct {
 	// if successful this field will contain a valid anonymous file handle
 	// after a GPIO_GET_LINEHANDLE_IOCTL operation, zero or negative value
 	// means error
-	Fd uintptr
+	Fd int
 }
 
+// struct gpiohandle_data - Information of values on a GPIO handle
 type HandleData struct {
-	// when getting the state of lines this contains the current
-	// state of a line, when setting the state of lines these should contain
-	// the desired target state
+	// GET: contains the current state of a line,
+	// SET: the desired target state
 	Values [GPIOHANDLES_MAX]byte
 }
 
 type EventFlag uint32
 
 const (
-	GPIOEVENT_REQUEST_RISING_EDGE  EventFlag = (1 << 0)
-	GPIOEVENT_REQUEST_FALLING_EDGE EventFlag = (1 << 1)
-	GPIOEVENT_REQUEST_BOTH_EDGES   EventFlag = ((1 << 0) | (1 << 1))
+	GPIOEVENT_REQUEST_RISING_EDGE  EventFlag = 1 << 0
+	GPIOEVENT_REQUEST_FALLING_EDGE EventFlag = 1 << 1
+	GPIOEVENT_REQUEST_BOTH_EDGES   EventFlag = (1 << 0) | (1 << 1)
 )
 
+// struct gpioevent_request - Information about a GPIO event request
 type EventRequest struct {
 	// the desired line to subscribe to events from, specified by
 	// offset index for the associated GPIO device
@@ -101,7 +120,7 @@ type EventRequest struct {
 
 	// desired handle flags for the desired GPIO line, such as
 	// GPIOHANDLE_REQUEST_ACTIVE_LOW or GPIOHANDLE_REQUEST_OPEN_DRAIN
-	HandleFlags HandleFlag
+	RequestFlags RequestFlag
 
 	// desired flags for the desired GPIO event line, such as
 	// GPIOEVENT_REQUEST_RISING_EDGE or GPIOEVENT_REQUEST_FALLING_EDGE
@@ -113,7 +132,7 @@ type EventRequest struct {
 
 	// if successful this field will contain a valid anonymous file handle
 	// after a GPIO_GET_LINEEVENT_IOCTL operation, zero or negative value means error
-	Fd uintptr
+	Fd int
 }
 
 type EventID uint32
@@ -123,10 +142,15 @@ const (
 	GPIOEVENT_EVENT_FALLING_EDGE = 0x02
 )
 
+// struct gpioevent_data - The actual event being pushed to userspace
 type EventData struct {
+	// best estimate of time of event occurrence, in nanoseconds
 	Timestamp uint64
-	ID        EventID
-	_pad      uint32 //lint:ignore U1000 .
+
+	// event identifier (e.g. rising/falling edge)
+	ID EventID
+
+	_pad uint32 //lint:ignore U1000 .
 }
 
 func cstr(bs []byte) string {
