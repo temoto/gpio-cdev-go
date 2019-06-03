@@ -22,7 +22,7 @@ func main() {
 	chipInfo := chip.Info()
 	log.Printf("%s", chipInfo.String())
 
-	lh, err := chip.OpenLines(gpio.GPIOHANDLE_REQUEST_OUTPUT, "test-out", 7, 8, 9, 10, 20, 198, 199)
+	lh, err := chip.OpenLines(gpio.GPIOHANDLE_REQUEST_INPUT, "test-out", 7, 8, 9, 10, 20, 198, 199)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
