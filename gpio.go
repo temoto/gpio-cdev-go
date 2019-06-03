@@ -1,8 +1,6 @@
 package gpio
 
 import (
-	"fmt"
-	"os"
 	"syscall"
 	"unsafe"
 
@@ -24,7 +22,8 @@ func Open(path, defaultConsumer string) (*Chip, error) {
 		fa:              newFdArc(fd),
 		defaultConsumer: defaultConsumer,
 	}
-	err = ioctl(chip.fa.fd, GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(&chip.info)))
+	// runtime.SetFinalizer(chip, func(c *Chip) { c.Close() })
+	err = RawGetChipInfo(chip.fa.fd, &chip.info)
 	return chip, err
 }
 
@@ -35,16 +34,36 @@ func (c *Chip) Close() error {
 
 func (c *Chip) Info() ChipInfo { return c.info }
 
-// func (c *Chip) LineRead(line uint32, flag RequestFlag) (byte, error) {
-// 	req := HandleRequest{
-// 		Flags: GPIOHANDLE_REQUEST_INPUT | flag,
-// 		Lines: 1,
-// 	}
-// 	copy(req.ConsumerLabel[:], c.defaultConsumer)
-// 	c.fa.incref()
-// 	defer c.fa.decref()
-// 	err := ioctl(c.fa.fd, GPIO_GET_LINEHANDLE_IOCTL, uintptr(unsafe.Pointer(&req)))
-// }
+func (c *Chip) OpenLines(flag RequestFlag, consumerLabel string, lines ...uint32) (*LinesHandle, error) {
+	req := HandleRequest{
+		Flags: flag,
+		Lines: uint32(len(lines)),
+	}
+	copy(req.ConsumerLabel[:], []byte(consumerLabel))
+	copy(req.LineOffsets[:], lines)
+
+	c.fa.incref() // FIXME handle chip closed race
+	err := RawGetLineHandle(c.fa.fd, &req)
+	if err != nil {
+		c.fa.decref()
+		err = errors.Annotate(err, "GET_LINEHANDLE")
+		return nil, err
+	}
+	if req.Fd <= 0 {
+		c.fa.decref()
+		err = errors.Errorf("GET_LINEHANDLE ioctl=success fd=%d", req.Fd)
+		return nil, err
+	}
+
+	lh := &LinesHandle{
+		chip:  c,
+		fd:    req.Fd,
+		count: req.Lines,
+	}
+	copy(lh.lines[:], req.LineOffsets[:])
+	// runtime.SetFinalizer(lh, func(l *LinesHandle) { l.Close() })
+	return lh, nil
+}
 
 func (c *Chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, consumerLabel string) (*LineEventHandle, error) {
 	req := EventRequest{
@@ -53,8 +72,9 @@ func (c *Chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 		EventFlags:   events,
 	}
 	copy(req.ConsumerLabel[:], []byte(consumerLabel))
-	c.fa.incref()
-	err := ioctl(c.fa.fd, GPIO_GET_LINEEVENT_IOCTL, uintptr(unsafe.Pointer(&req)))
+
+	c.fa.incref() // FIXME handle chip closed race
+	err := RawGetLineEvent(c.fa.fd, &req)
 	if err != nil {
 		c.fa.decref()
 		err = errors.Trace(err)
@@ -64,17 +84,44 @@ func (c *Chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 	le := &LineEventHandle{
 		chip:    c,
 		eventFd: req.Fd,
-		line:    line,
 		reqFlag: req.RequestFlags,
 		events:  req.EventFlags,
 	}
+	// runtime.SetFinalizer(le, func(l *LineEventHandle) { l.Close() })
 	return le, nil
+}
+
+type LinesHandle struct {
+	chip   *Chip
+	fd     int
+	lines  [GPIOHANDLES_MAX]uint32
+	values [GPIOHANDLES_MAX]byte
+	count  uint32
+}
+
+func (self *LinesHandle) Close() error {
+	err := syscall.Close(self.fd)
+	self.chip.fa.decref()
+	return err
+}
+
+func (self *LinesHandle) LineOffsets() []uint32 { return self.lines[:self.count] }
+
+func (self *LinesHandle) Read() (HandleData, error) {
+	data := HandleData{}
+	err := RawGetLineValues(self.fd, &data)
+	return data, err
+}
+
+func (self *LinesHandle) Write(bs ...byte) error {
+	copy(self.values[:], bs)
+	data := HandleData{Values: self.values}
+	return RawSetLineValues(self.fd, &data)
 }
 
 type LineEventHandle struct {
 	chip    *Chip
 	eventFd int
-	line    uint32
 	reqFlag RequestFlag
 	events  EventFlag
 }
@@ -86,12 +133,12 @@ func (self *LineEventHandle) Close() error {
 }
 
 func (self *LineEventHandle) Read() (byte, error) {
-	d, err := readLines(self.eventFd)
+	var data HandleData
+	err := RawGetLineValues(self.eventFd, &data)
 	if err != nil {
 		err = errors.Annotate(err, "event.Read")
 	}
-	return d.Values[0], err
-	// return self.chip.LineRead(self.line, self.reqFlag)
+	return data.Values[0], err
 }
 
 func (self *LineEventHandle) Wait( /*FIXME timeout time.Duration*/ ) (EventData, error) {
@@ -103,20 +150,6 @@ func (self *LineEventHandle) Wait( /*FIXME timeout time.Duration*/ ) (EventData,
 		err = errors.Annotate(err, "event.Wait")
 	}
 	return e, err
-}
-
-func ioctl(fd int, op, arg uintptr) error {
-	r, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), op, arg)
-	if errno != 0 {
-		err := os.NewSyscallError("SYS_IOCTL", errno)
-		// log.Printf("ioctl fd=%d op=%x arg=%x err=%v", fd, op, arg, err)
-		return err
-	} else if r != 0 {
-		err := fmt.Errorf("SYS_IOCTL r=%d", r)
-		// log.Printf("ioctl fd=%d op=%x arg=%x err=%v", fd, op, arg, err)
-		return err
-	}
-	return nil
 }
 
 func readEvent(fd int) (EventData, error) {
@@ -137,10 +170,4 @@ func readEvent(fd int) (EventData, error) {
 	eb := (*eventBuf)(unsafe.Pointer(&e))
 	copy((*eb)[:], buf[:])
 	return e, nil
-}
-
-func readLines(fd int) (HandleData, error) {
-	var d HandleData
-	err := ioctl(fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, uintptr(unsafe.Pointer(&d)))
-	return d, err
 }

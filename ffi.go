@@ -2,6 +2,9 @@ package gpio
 
 import (
 	"fmt"
+	"os"
+	"syscall"
+	"unsafe"
 )
 
 // struct gpiochip_info - Information about a certain GPIO chip
@@ -162,4 +165,42 @@ func cstr(bs []byte) string {
 		length++
 	}
 	return string(bs[:length])
+}
+
+func RawGetChipInfo(fd int, arg *ChipInfo) error {
+	return ioctl(fd, uintptr(GPIO_GET_CHIPINFO_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func RawGetLineInfo(fd int, arg *LineInfo) error {
+	return ioctl(fd, uintptr(GPIO_GET_LINEINFO_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func RawGetLineHandle(fd int, arg *HandleRequest) error {
+	return ioctl(fd, uintptr(GPIO_GET_LINEHANDLE_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func RawGetLineEvent(fd int, arg *EventRequest) error {
+	return ioctl(fd, uintptr(GPIO_GET_LINEEVENT_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func RawGetLineValues(fd int, arg *HandleData) error {
+	return ioctl(fd, uintptr(GPIOHANDLE_GET_LINE_VALUES_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func RawSetLineValues(fd int, arg *HandleData) error {
+	return ioctl(fd, uintptr(GPIOHANDLE_SET_LINE_VALUES_IOCTL), uintptr(unsafe.Pointer(arg)))
+}
+
+func ioctl(fd int, op, arg uintptr) error {
+	r, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), op, arg)
+	if errno != 0 {
+		err := os.NewSyscallError("SYS_IOCTL", errno)
+		// log.Printf("ioctl fd=%d op=%x arg=%x err=%v", fd, op, arg, err)
+		return err
+	} else if r != 0 {
+		err := fmt.Errorf("SYS_IOCTL r=%d", r)
+		// log.Printf("ioctl fd=%d op=%x arg=%x err=%v", fd, op, arg, err)
+		return err
+	}
+	return nil
 }
