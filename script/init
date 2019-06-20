@@ -1,0 +1,28 @@
+#!/bin/ash
+set -eu
+magic="==='delimiter==="
+echo "- mount dev,proc,sys"
+mount -t devtmpfs none /dev
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t debugfs none /sys/kernel/debug
+
+echo "- ls /dev/gpiochip0"
+ls -l /dev/gpiochip0
+
+echo "- setup timeout"
+( sleep 11s ; echo "${magic} timeout" ; poweroff -ffn ) &
+
+echo "${magic} begin"
+if /app ; then
+  echo "${magic} success"
+else
+  echo "${magic} fail"
+# XXX useful in development
+#   exec cttyhack ash
+fi
+
+echo "- poweroff"
+set -x
+poweroff -ffn
+sleep 17s

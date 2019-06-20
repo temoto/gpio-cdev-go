@@ -1,0 +1,42 @@
+#!/bin/bash
+base="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+set -eux
+set -o pipefail
+
+not_done() {
+	[[ -z $CI ]] && return 0
+	echo '======================================================================' >&2
+	echo '!!! This is not a successful build yet.' >&2
+	echo 'Done to enrich CI build cache within timeout.' >&2
+	echo 'You must run the same build again.' >&2
+	echo '======================================================================' >&2
+	exit 0
+}
+
+# care for CI cache: drop downloads, keep artifacts
+if [[ -n $CI ]] ; then
+	export BR2_DL_DIR=/tmp/buildroot-dl
+	mkdir -p "$BR2_DL_DIR"
+fi
+
+if [[ ! -d "$BUILDROOT" ]] ; then
+	mkdir -p "$BUILDROOT"
+	curl -L 'https://git.busybox.net/buildroot/snapshot/buildroot-2019.05.tar.bz2' |tar -xj --strip-components=1 -C "$BUILDROOT"
+	cp -v "$base"/buildroot/* "$BUILDROOT"/
+	make -C "$BUILDROOT" BR2_DEFCONFIG="$base"/buildroot/defconfig defconfig
+	make -C "$BUILDROOT" toolchain-extract
+	make -C "$BUILDROOT" host-binutils host-fakeroot host-gcc-initial |{ fgrep '>>> ' || true ; }
+	not_done
+fi
+
+# maybe update post-build
+cp -v "$base"/buildroot/* "$BUILDROOT"/
+
+if ! "$base"/script/vm-ready ; then
+	cd "$BUILDROOT"
+	make linux |{ fgrep '>>> ' || true ; }
+	not_done
+fi
+
+cd "$BUILDROOT"
+make |{ fgrep '>>> ' || true ; }

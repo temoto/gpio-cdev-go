@@ -1,0 +1,33 @@
+#!/bin/bash
+qemu_flags=(
+	-append 'quiet console=ttyS0 gpio-mockup.gpio_mockup_ranges=0,64'
+	-device pvpanic
+	-display none
+	-initrd rootfs-app.cpio
+	-kernel bzImage
+	-no-reboot
+	-serial file:qemu-output
+)
+set -eux
+
+export CGO_ENABLED=0 GO111MODULE=on GOARCH=amd64 GOOS=linux
+go get ./cmd/gpio-mockup-test
+go build -a -ldflags '-s' -o app ./cmd/gpio-mockup-test
+
+if [[ -n $CI ]] ; then
+	cache_dir="$HOME/.cache"
+	for name in bzImage rootfs.cpio ; do
+		[[ -f "$cache_dir/$name" ]] || curl -fLsS -o "$cache_dir/$name" "https://github.com/temoto/gpio-cdev-go/releases/download/v0.8.0/$name"
+		cp -v "$cache_dir/$name" ./
+	done
+else
+	echo 'CI not detected, please provide ./bzImage ./rootfs.cpio' >&2
+fi
+
+echo './app' |cpio -o -H newc >app.cpio
+( set -eu ; cd script ; echo './init' |cpio -o -H newc ) >init.cpio
+cat rootfs.cpio init.cpio app.cpio >rootfs-app.cpio
+
+time qemu-system-x86_64 "${qemu_flags[@]}"
+cat qemu-output
+fgrep "==='delimiter=== success" qemu-output >/dev/null
