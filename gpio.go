@@ -7,40 +7,49 @@ import (
 	"github.com/juju/errors"
 )
 
-type Chip struct {
+type chip struct {
 	fa              fdArc
 	info            ChipInfo
 	defaultConsumer string
 }
 
-func Open(path, defaultConsumer string) (*Chip, error) {
+// The entry point to this library.
+// `path` is likely "/dev/gpiochipN"
+// `defaultConsumer` will be used in absense of more specific consumer label
+//   to OpenLines/GetLineEvent.
+// Makes two syscalls: open(path), ioctl(GET_CHIPINFO)
+// You must call Chiper.Close()
+func Open(path, defaultConsumer string) (Chiper, error) {
 	fd, err := syscall.Open(path, syscall.O_RDWR|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
-	chip := &Chip{
+	chip := &chip{
 		fa:              newFdArc(fd),
 		defaultConsumer: defaultConsumer,
 	}
-	// runtime.SetFinalizer(chip, func(c *Chip) { c.Close() })
+	// runtime.SetFinalizer(chip, func(c *chip) { c.Close() })
 	err = RawGetChipInfo(chip.fa.fd, &chip.info)
 	return chip, err
 }
 
-func (c *Chip) Close() error {
+func (c *chip) Close() error {
+	if c == nil {
+		return nil
+	}
 	c.fa.decref()
 	return c.fa.wait()
 }
 
-func (c *Chip) Info() ChipInfo { return c.info }
+func (c *chip) Info() ChipInfo { return c.info }
 
-func (c *Chip) OpenLines(flag RequestFlag, consumerLabel string, lines ...uint32) (*LinesHandle, error) {
+func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint32) (Lineser, error) {
 	req := HandleRequest{
 		Flags: flag,
-		Lines: uint32(len(lines)),
+		Lines: uint32(len(offsets)),
 	}
 	copy(req.ConsumerLabel[:], []byte(consumerLabel))
-	copy(req.LineOffsets[:], lines)
+	copy(req.LineOffsets[:], offsets)
 
 	c.fa.incref() // FIXME handle chip closed race
 	err := RawGetLineHandle(c.fa.fd, &req)
@@ -55,35 +64,33 @@ func (c *Chip) OpenLines(flag RequestFlag, consumerLabel string, lines ...uint32
 		return nil, err
 	}
 
-	lh := &LinesHandle{
+	lh := &lines{
 		chip:  c,
 		fd:    req.Fd,
 		count: req.Lines,
 	}
-	copy(lh.lines[:], req.LineOffsets[:])
-	// runtime.SetFinalizer(lh, func(l *LinesHandle) { l.Close() })
+	copy(lh.offsets[:], req.LineOffsets[:])
+	// runtime.SetFinalizer(lh, func(l *lines) { l.Close() })
 	return lh, nil
 }
 
-type LinesHandle struct {
-	chip   *Chip
-	fd     int
-	lines  [GPIOHANDLES_MAX]uint32
-	values [GPIOHANDLES_MAX]byte
-	count  uint32
+type lines struct {
+	chip    *chip
+	fd      int
+	offsets [GPIOHANDLES_MAX]uint32
+	values  [GPIOHANDLES_MAX]byte
+	count   uint32
 }
 
-func (self *LinesHandle) Close() error {
+func (self *lines) Close() error {
 	err := syscall.Close(self.fd)
 	self.chip.fa.decref()
 	return err
 }
 
-type LineSetFunc func(value byte)
-
 // offset -> idx in self.lines/values
-func (self *LinesHandle) mustFindLine(line uint32) int {
-	for i, l := range self.lines {
+func (self *lines) mustFindLine(line uint32) int {
+	for i, l := range self.offsets {
 		if uint32(i) >= self.count {
 			break
 		}
@@ -94,24 +101,29 @@ func (self *LinesHandle) mustFindLine(line uint32) int {
 	panic(fmt.Sprintf("code error invalid line=%d registered=%v", line, self.LineOffsets()))
 }
 
-func (self *LinesHandle) SetFunc(line uint32) LineSetFunc {
+// Returns line setter func which only changes internal buffer.
+// Use `.Flush()` to change hardware state of all lines.
+func (self *lines) SetFunc(line uint32) LineSetFunc {
 	idx := self.mustFindLine(line)
 	return func(value byte) {
 		self.values[idx] = value
 	}
 }
 
-func (self *LinesHandle) LineOffsets() []uint32 { return self.lines[:self.count] }
+func (self *lines) LineOffsets() []uint32 {
+	return self.offsets[:self.count]
+}
 
-func (self *LinesHandle) Read() (HandleData, error) {
+func (self *lines) Read() (HandleData, error) {
 	data := HandleData{}
 	err := RawGetLineValues(self.fd, &data)
 	return data, err
 }
 
-func (self *LinesHandle) Flush() error {
+func (self *lines) Flush() error {
 	data := HandleData{Values: self.values}
 	return RawSetLineValues(self.fd, &data)
 }
 
-func (self *LinesHandle) SetBulk(bs ...byte) { copy(self.values[:], bs) }
+// Changes internal buffer only, use `.Flush()` to apply to hardware.
+func (self *lines) SetBulk(bs ...byte) { copy(self.values[:], bs) }

@@ -2,12 +2,13 @@ package gpio
 
 import (
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/juju/errors"
 )
 
-func (c *Chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, consumerLabel string) (*LineEventHandle, error) {
+func (c *chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, consumerLabel string) (Eventer, error) {
 	req := EventRequest{
 		LineOffset:   line,
 		RequestFlags: GPIOHANDLE_REQUEST_INPUT | flag,
@@ -23,30 +24,30 @@ func (c *Chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 		return nil, err
 	}
 
-	le := &LineEventHandle{
+	le := &lineEventHandle{
 		chip:    c,
 		eventFd: req.Fd,
 		reqFlag: req.RequestFlags,
 		events:  req.EventFlags,
 	}
-	// runtime.SetFinalizer(le, func(l *LineEventHandle) { l.Close() })
+	// runtime.SetFinalizer(le, func(l *lineEventHandle) { l.Close() })
 	return le, nil
 }
 
-type LineEventHandle struct {
-	chip    *Chip
+type lineEventHandle struct {
+	chip    *chip
 	eventFd int
 	reqFlag RequestFlag
 	events  EventFlag
 }
 
-func (self *LineEventHandle) Close() error {
+func (self *lineEventHandle) Close() error {
 	err := syscall.Close(self.eventFd)
 	self.chip.fa.decref()
 	return err
 }
 
-func (self *LineEventHandle) Read() (byte, error) {
+func (self *lineEventHandle) Read() (byte, error) {
 	var data HandleData
 	err := RawGetLineValues(self.eventFd, &data)
 	if err != nil {
@@ -55,8 +56,8 @@ func (self *LineEventHandle) Read() (byte, error) {
 	return data.Values[0], err
 }
 
-func (self *LineEventHandle) Wait( /*FIXME timeout time.Duration*/ ) (EventData, error) {
-	// syscall.Select()
+func (self *lineEventHandle) Wait(timeout time.Duration) (EventData, error) {
+	// TODO select/epoll
 
 	// log.Printf("req.Fd=%d", req.Fd)
 	e, err := readEvent(self.eventFd)
