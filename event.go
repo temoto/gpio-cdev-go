@@ -1,6 +1,7 @@
 package gpio
 
 import (
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -9,6 +10,10 @@ import (
 )
 
 func (c *chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, consumerLabel string) (Eventer, error) {
+	if !c.fa.incref() {
+		return nil, ErrClosed
+	}
+
 	req := EventRequest{
 		LineOffset:   line,
 		RequestFlags: GPIOHANDLE_REQUEST_INPUT | flag,
@@ -16,7 +21,6 @@ func (c *chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 	}
 	copy(req.ConsumerLabel[:], []byte(consumerLabel))
 
-	c.fa.incref() // FIXME handle chip closed race
 	err := RawGetLineEvent(c.fa.fd, &req)
 	if err != nil {
 		c.fa.decref()
@@ -39,12 +43,16 @@ type lineEventHandle struct {
 	eventFd int
 	reqFlag RequestFlag
 	events  EventFlag
+	closed  uint32
 }
 
 func (self *lineEventHandle) Close() error {
-	err := syscall.Close(self.eventFd)
-	self.chip.fa.decref()
-	return err
+	if atomic.AddUint32(&self.closed, 1) == 1 {
+		err := syscall.Close(self.eventFd)
+		self.chip.fa.decref()
+		return err
+	}
+	return ErrClosed
 }
 
 func (self *lineEventHandle) Read() (byte, error) {

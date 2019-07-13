@@ -1,9 +1,17 @@
 package gpio
 
 import (
+	"errors"
 	"io"
 	"time"
 )
+
+var ErrClosed = errors.New("already closed")
+
+// Please use this to check whether gpio.*.Close() was already called.
+func IsClosed(err error) bool {
+	return err == ErrClosed
+}
 
 type Chiper interface {
 	io.Closer

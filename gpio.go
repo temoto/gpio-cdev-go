@@ -2,6 +2,7 @@ package gpio
 
 import (
 	"fmt"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/juju/errors"
@@ -9,8 +10,9 @@ import (
 
 type chip struct {
 	fa              fdArc
-	info            ChipInfo
 	defaultConsumer string
+	closed          uint32
+	info            ChipInfo
 }
 
 // The entry point to this library.
@@ -37,13 +39,21 @@ func (c *chip) Close() error {
 	if c == nil {
 		return nil
 	}
-	c.fa.decref()
-	return c.fa.wait()
+	if atomic.AddUint32(&c.closed, 1) == 1 {
+		c.fa.decref()
+		return c.fa.wait()
+	}
+	return ErrClosed
 }
 
 func (c *chip) Info() ChipInfo { return c.info }
 
 func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint32) (Lineser, error) {
+	const tag = "GET_LINEHANDLE"
+	if !c.fa.incref() {
+		return nil, ErrClosed
+	}
+
 	req := HandleRequest{
 		Flags: flag,
 		Lines: uint32(len(offsets)),
@@ -51,11 +61,10 @@ func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint
 	copy(req.ConsumerLabel[:], []byte(consumerLabel))
 	copy(req.LineOffsets[:], offsets)
 
-	c.fa.incref() // FIXME handle chip closed race
 	err := RawGetLineHandle(c.fa.fd, &req)
 	if err != nil {
 		c.fa.decref()
-		err = errors.Annotate(err, "GET_LINEHANDLE")
+		err = errors.Annotate(err, tag)
 		return nil, err
 	}
 	if req.Fd <= 0 {
@@ -80,12 +89,16 @@ type lines struct {
 	offsets [GPIOHANDLES_MAX]uint32
 	values  [GPIOHANDLES_MAX]byte
 	count   uint32
+	closed  uint32
 }
 
 func (self *lines) Close() error {
-	err := syscall.Close(self.fd)
-	self.chip.fa.decref()
-	return err
+	if atomic.AddUint32(&self.closed, 1) == 1 {
+		err := syscall.Close(self.fd)
+		self.chip.fa.decref()
+		return err
+	}
+	return ErrClosed
 }
 
 // offset -> idx in self.lines/values

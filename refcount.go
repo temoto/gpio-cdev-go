@@ -18,11 +18,12 @@ func newFdArc(fd int) fdArc {
 	return fdArc{fd: fd, c: 1, e: make(chan error, 1)}
 }
 
-func (f *fdArc) incref() {
+func (f *fdArc) incref() bool {
 	nc := atomic.AddInt32(&f.c, 1)
-	if nc == 1 {
-		panic("code error incref after last decref")
-	}
+	// if nc == 1 {
+	// 	panic("code error incref after last decref")
+	// }
+	return nc > 1
 }
 
 func (f *fdArc) decref() {
