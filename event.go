@@ -1,6 +1,8 @@
 package gpio
 
 import (
+	"fmt"
+	"os"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -24,66 +26,93 @@ func (c *chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 	err := RawGetLineEvent(c.fa.fd, &req)
 	if err != nil {
 		c.fa.decref()
-		err = errors.Trace(err)
+		err = errors.Annotate(err, "GPIO_GET_LINEEVENT_IOCTL")
 		return nil, err
 	}
 
-	le := &lineEventHandle{
+	if err := syscall.SetNonblock(req.Fd, true); err != nil {
+		c.fa.decref()
+		err = errors.Annotate(err, "SetNonblock")
+		return nil, err
+	}
+
+	le := &lineEvent{
 		chip:    c,
-		eventFd: req.Fd,
+		f:       os.NewFile(uintptr(req.Fd), fmt.Sprintf("gpio:event:%d", line)),
 		reqFlag: req.RequestFlags,
 		events:  req.EventFlags,
+		line:    line,
 	}
-	// runtime.SetFinalizer(le, func(l *lineEventHandle) { l.Close() })
+	// runtime.SetFinalizer(le, func(le *lineEvent) { le.Close() })
 	return le, nil
 }
 
-type lineEventHandle struct {
+type lineEvent struct {
 	chip    *chip
-	eventFd int
+	f       *os.File
 	reqFlag RequestFlag
 	events  EventFlag
+	line    uint32
 	closed  uint32
 }
 
-func (self *lineEventHandle) Close() error {
+func (self *lineEvent) Close() error {
 	if atomic.AddUint32(&self.closed, 1) == 1 {
-		err := syscall.Close(self.eventFd)
+		// _ = self.f.SetDeadline(time.Time{})
+		// _ = syscall.SetNonblock(int(self.f.Fd()), false)
+		err := self.f.Close()
 		self.chip.fa.decref()
 		return err
 	}
 	return ErrClosed
 }
 
-func (self *lineEventHandle) Read() (byte, error) {
+func (self *lineEvent) Read() (byte, error) {
 	var data HandleData
-	err := RawGetLineValues(self.eventFd, &data)
+	err := RawGetLineValues(int(self.f.Fd()), &data)
 	if err != nil {
 		err = errors.Annotate(err, "event.Read")
 	}
 	return data.Values[0], err
 }
 
-func (self *lineEventHandle) Wait(timeout time.Duration) (EventData, error) {
-	// TODO select/epoll
-
-	// log.Printf("req.Fd=%d", req.Fd)
-	e, err := readEvent(self.eventFd)
+func (self *lineEvent) Wait(timeout time.Duration) (EventData, error) {
+	const tag = "event.Wait"
+	var deadline time.Time
+	var e EventData
+	var err error
+	if timeout != 0 {
+		deadline = time.Now().Add(timeout)
+	}
+	if err = self.f.SetDeadline(deadline); err != nil {
+		err = errors.Annotate(err, tag)
+		return e, err
+	}
+	e, err = self.readEvent()
+	// specifically don't annotate timeout, to ease external code checks
+	if err == ErrTimeout {
+		return e, err
+	}
 	if err != nil {
-		err = errors.Annotate(err, "event.Wait")
+		err = errors.Annotate(err, tag)
 	}
 	return e, err
 }
 
-func readEvent(fd int) (EventData, error) {
-	// ugly dance around syscall.Read []byte instead of *void
+func (self *lineEvent) readEvent() (EventData, error) {
+	// dance around File.Read []byte
 	const esz = int(unsafe.Sizeof(EventData{}))
 	type eventBuf [esz]byte
 	var buf eventBuf
 	var e EventData
-	n, err := syscall.Read(int(fd), buf[:])
+	var n int
+	var err error
+	n, err = self.f.Read(buf[:])
+	// n, err = f.ReadAt(buf[:], 0)
+	if IsTimeout(err) {
+		return e, ErrTimeout
+	}
 	if err != nil {
-		err = errors.Annotate(err, "readEvent")
 		return e, err
 	}
 	if n != esz {

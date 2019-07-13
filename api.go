@@ -7,10 +7,29 @@ import (
 )
 
 var ErrClosed = errors.New("already closed")
+var ErrTimeout error = errTimeout{}
+
+type errTimeout struct{}
+
+func (errTimeout) Error() string   { return "timeout" }
+func (errTimeout) IsTimeout() bool { return true }
+func (errTimeout) Timeout() bool   { return true }
+func (errTimeout) Temporary() bool { return true }
 
 // Please use this to check whether gpio.*.Close() was already called.
 func IsClosed(err error) bool {
 	return err == ErrClosed
+}
+
+// Or use any timeout error check you know, and please report if some doesn't work.
+func IsTimeout(err error) bool {
+	if err == nil { // redundant but hopefully useful shortcut
+		return false
+	}
+	if t, ok := err.(interface{ Timeout() bool }); ok {
+		return t.Timeout()
+	}
+	return false
 }
 
 type Chiper interface {

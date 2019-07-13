@@ -11,13 +11,14 @@ echo "- ls /dev/gpiochip0"
 ls -l /dev/gpiochip0
 
 echo "- setup timeout"
-( sleep 11s ; echo "${magic} timeout" ; poweroff -ffn ) &
+( sleep 11s ; echo "${magic} timeout" ; dmesg ; poweroff -ffn ) &
 
 echo "${magic} begin"
 if /app ; then
   echo "${magic} success"
 else
   echo "${magic} fail"
+  dmesg
 # XXX useful in development
 #   exec cttyhack ash
 fi

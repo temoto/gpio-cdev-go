@@ -12,7 +12,6 @@ Ultimate success would be to merge this functionality into periph.io lib.
 
 # Possible issues
 
-- (as of 2019-07) `LineEventer.Wait` ignores timeout argument and blocks forever; will be fixed
 - may leak `req.fd` descriptors, TODO test
 - 64-bit system likely have different ioctl numbers, please try and write me back
 

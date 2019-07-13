@@ -60,21 +60,7 @@ func wrapped(chipno int) error {
 		lr.Close()
 	}
 
-	// eh, err := chip.GetLineEvent(uint32(line), 0, gpio.GPIOEVENT_REQUEST_BOTH_EDGES, "waiter")
-	// if err != nil {
-	// 	return errors.Trace(err)
-	// }
-	// go func() {
-	// 	e, err := eh.Wait()
-	// 	if err != nil {
-	// 		err = errors.Trace(err)
-	// 		log.Fatal(err)
-	// 	}
-	// 	log.Printf("event=%v", e)
-	// }()
-
 	{
-		// time.Sleep(1 * time.Millisecond) // enter Wait()
 		wlines := []uint32{0, 1, 3}
 		lw, err := chip.OpenLines(gpio.GPIOHANDLE_REQUEST_OUTPUT, "writer", wlines...)
 		if err != nil {
@@ -107,6 +93,38 @@ func wrapped(chipno int) error {
 
 		time.Sleep(10 * time.Millisecond)
 		lw.Close()
+	}
+
+	{
+		le, err := chip.GetLineEvent(uint32(0), 0, gpio.GPIOEVENT_REQUEST_BOTH_EDGES, "waiter")
+		if err != nil {
+			return errors.Trace(err)
+		}
+		_, err = le.Wait(100 * time.Millisecond)
+		if !gpio.IsTimeout(err) {
+			log.Fatalf("expected event.Wait timeout err=%v", err)
+		}
+
+		// try to interrupt Wait()
+		go func() {
+			time.Sleep(333 * time.Millisecond)
+			if leCloseErr := le.Close(); leCloseErr != nil {
+				log.Fatalf("event concurrent close err=%v", leCloseErr)
+			}
+		}()
+		_, err = le.Wait(time.Second)
+		log.Printf("event wait err=%v", err)
+		err = le.Close()
+		log.Printf("event close err=%v", err)
+		// FIXME
+		// if li, err := chip.LineInfo(0); err != nil {
+		// 	log.Fatal(err)
+		// } else if li.ConsumerString() != "" {
+		// 	log.Fatalf("event line still not free consumer=%s", li.String())
+		// }
+		if !gpio.IsClosed(err) {
+			log.Fatalf("expected already closed error")
+		}
 	}
 
 	return nil

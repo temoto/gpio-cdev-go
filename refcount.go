@@ -20,9 +20,6 @@ func newFdArc(fd int) fdArc {
 
 func (f *fdArc) incref() bool {
 	nc := atomic.AddInt32(&f.c, 1)
-	// if nc == 1 {
-	// 	panic("code error incref after last decref")
-	// }
 	return nc > 1
 }
 

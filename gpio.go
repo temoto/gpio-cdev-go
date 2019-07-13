@@ -75,7 +75,7 @@ func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint
 	}
 	if req.Fd <= 0 {
 		c.fa.decref()
-		err = errors.Errorf("GET_LINEHANDLE ioctl=success fd=%d", req.Fd)
+		err = errors.Errorf("%s ioctl=success fd=%d", tag, req.Fd)
 		return nil, err
 	}
 
