@@ -16,6 +16,7 @@ func IsClosed(err error) bool {
 type Chiper interface {
 	io.Closer
 	Info() ChipInfo
+	LineInfo(line uint32) (LineInfo, error)
 	OpenLines(flag RequestFlag, consumerLabel string, lines ...uint32) (Lineser, error)
 	GetLineEvent(line uint32, flag RequestFlag, events EventFlag, consumerLabel string) (Eventer, error)
 }

@@ -15,6 +15,11 @@ func (m *MockChip) Close() error { return m.Called().Error(0) }
 
 func (m *MockChip) Info() gpio.ChipInfo { return m.Called().Get(0).(gpio.ChipInfo) }
 
+func (m *MockChip) LineInfo(line uint32) (gpio.LineInfo, error) {
+	returns := m.Called(line)
+	return returns.Get(0).(gpio.LineInfo), returns.Error(1)
+}
+
 func (m *MockChip) OpenLines(flag gpio.RequestFlag, consumerLabel string, lines ...uint32) (gpio.Lineser, error) {
 	args := []interface{}{flag, consumerLabel}
 	for _, x := range lines {

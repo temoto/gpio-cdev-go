@@ -19,11 +19,6 @@ type ChipInfo struct {
 	Lines uint32
 }
 
-func (self *ChipInfo) String() string {
-	return fmt.Sprintf("name=%s label=%s lines=%d",
-		cstr(self.Name[:]), cstr(self.Label[:]), self.Lines)
-}
-
 type LineFlag uint32
 
 const (
@@ -154,17 +149,6 @@ type EventData struct {
 	ID EventID
 
 	_pad uint32 //lint:ignore U1000 .
-}
-
-func cstr(bs []byte) string {
-	length := 0
-	for _, b := range bs {
-		if b == 0 {
-			break
-		}
-		length++
-	}
-	return string(bs[:length])
 }
 
 func RawGetChipInfo(fd int, arg *ChipInfo) error {

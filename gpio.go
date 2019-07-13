@@ -48,6 +48,12 @@ func (c *chip) Close() error {
 
 func (c *chip) Info() ChipInfo { return c.info }
 
+func (c *chip) LineInfo(line uint32) (LineInfo, error) {
+	linfo := LineInfo{LineOffset: line}
+	err := RawGetLineInfo(c.fa.fd, &linfo)
+	return linfo, err
+}
+
 func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint32) (Lineser, error) {
 	const tag = "GET_LINEHANDLE"
 	if !c.fa.incref() {
@@ -81,6 +87,19 @@ func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint
 	copy(lh.offsets[:], req.LineOffsets[:])
 	// runtime.SetFinalizer(lh, func(l *lines) { l.Close() })
 	return lh, nil
+}
+
+func (self *ChipInfo) String() string {
+	return fmt.Sprintf("name=%s label=%s lines=%d",
+		cstr(self.Name[:]), cstr(self.Label[:]), self.Lines)
+}
+
+func (li *LineInfo) ConsumerString() string { return cstr(li.Consumer[:]) }
+func (li *LineInfo) NameString() string     { return cstr(li.Name[:]) }
+
+func (li *LineInfo) String() string {
+	return fmt.Sprintf("line=%d flags=%x name=%s consumer=%s",
+		li.LineOffset, li.Flags, li.NameString(), li.ConsumerString())
 }
 
 type lines struct {
@@ -140,3 +159,14 @@ func (self *lines) Flush() error {
 
 // Changes internal buffer only, use `.Flush()` to apply to hardware.
 func (self *lines) SetBulk(bs ...byte) { copy(self.values[:], bs) }
+
+func cstr(bs []byte) string {
+	length := 0
+	for _, b := range bs {
+		if b == 0 {
+			break
+		}
+		length++
+	}
+	return string(bs[:length])
+}
