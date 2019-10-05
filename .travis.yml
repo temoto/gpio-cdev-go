@@ -26,7 +26,7 @@ jobs:
     language: go
     go: 1.x
     env: task=lint GO111MODULE=on
-    install: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s -- -b $HOME/bin v1.16.0
+    install: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s -- -b $HOME/bin v1.19.1
     script:
     - go mod tidy && git diff --exit-code
     - $HOME/bin/golangci-lint run
