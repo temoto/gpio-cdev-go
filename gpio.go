@@ -81,7 +81,7 @@ func (c *chip) OpenLines(flag RequestFlag, consumerLabel string, offsets ...uint
 
 	lh := &lines{
 		chip:  c,
-		fd:    req.Fd,
+		fd:    int(req.Fd),
 		count: req.Lines,
 	}
 	copy(lh.offsets[:], req.LineOffsets[:])

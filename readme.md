@@ -15,6 +15,17 @@ Ultimate success would be to merge this functionality into periph.io lib.
 - may leak `req.fd` descriptors, TODO test
 - 64-bit system likely have different ioctl numbers, please try and write me back
 
+# Testing:
+
+* get a 2 free GPIO pins
+* jumper them
+* set environment variables:
+```
+export GPIO_DEV_PATH="/dev/gpiochip0"
+export GPIO_TEST_PIN="19"
+export GPIO_TEST_PIN_LOOP="16"
+```
+
 
 # Flair
 

@@ -1,13 +1,13 @@
 package gpio
 
-type Op uint
+import "unsafe"
 
-// Likely these constants are not portable, sorry, I don't know better.
-const (
-	GPIO_GET_CHIPINFO_IOCTL          Op = 0x8044b401
-	GPIO_GET_LINEINFO_IOCTL          Op = 0xc048b402
-	GPIO_GET_LINEHANDLE_IOCTL        Op = 0xc16cb403
-	GPIO_GET_LINEEVENT_IOCTL         Op = 0xc030b404
-	GPIOHANDLE_GET_LINE_VALUES_IOCTL Op = 0xc040b408
-	GPIOHANDLE_SET_LINE_VALUES_IOCTL Op = 0xc040b409
+// From <include/uapi/linux/gpio.h
+var (
+	GPIO_GET_CHIPINFO_IOCTL  uintptr = IoR(0xb4,0x01,unsafe.Sizeof(ChipInfo{}))
+	GPIO_GET_LINEINFO_IOCTL          = IoWR(0xb4,0x02,unsafe.Sizeof(LineInfo{}))
+	GPIO_GET_LINEHANDLE_IOCTL        = IoWR(0xb4,0x03,unsafe.Sizeof(HandleRequest{}))
+	GPIO_GET_LINEEVENT_IOCTL         = IoWR(0xb4,0x04,unsafe.Sizeof(EventRequest{}))
+	GPIOHANDLE_GET_LINE_VALUES_IOCTL = IoWR(0xb4,0x08,unsafe.Sizeof(HandleData{}))
+	GPIOHANDLE_SET_LINE_VALUES_IOCTL = IoWR(0xb4,0x09,unsafe.Sizeof(HandleData{}))
 )
