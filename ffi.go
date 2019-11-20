@@ -157,7 +157,7 @@ func RawGetChipInfo(fd int, arg *ChipInfo) error {
 }
 
 func RawGetLineInfo(fd int, arg *LineInfo) error {
-	return ioctl(fd,GPIO_GET_LINEINFO_IOCTL, uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIO_GET_LINEINFO_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawGetLineHandle(fd int, arg *HandleRequest) error {

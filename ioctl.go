@@ -3,8 +3,6 @@ package gpio
 // This code is Copyright (c) 2014 Mark Wolfe and licenced under the MIT licence. All rights not explicitly granted in the MIT license are reserved.
 // https://github.com/paypal/gatt/commit/ffdee90ddb4ade889d993e0fd82afcc47fe65c4d#diff-6580ad406a4f6ab990f69b982bdc945a
 
-import "syscall"
-
 const (
 	typeBits      = 8
 	numberBits    = 8
@@ -30,31 +28,22 @@ func ioc(dir, t, nr, size uintptr) uintptr {
 	return (dir << directionShift) | (t << typeShift) | (nr << numberShift) | (size << sizeShift)
 }
 
-// Io used for a simple ioctl that sends nothing but the type and number, and receives back nothing but an (integer) retval.
-func Io(t, nr uintptr) uintptr {
+// ioNone used for a simple ioctl that sends nothing but the type and number, and receives back nothing but an (integer) retval.
+func ioNone(t, nr uintptr) uintptr {
 	return ioc(directionNone, t, nr, 0)
 }
 
-// IoR used for an ioctl that reads data from the device driver. The driver will be allowed to return sizeof(data_type) bytes to the user.
-func IoR(t, nr, size uintptr) uintptr {
+// ioR used for an ioctl that reads data from the device driver. The driver will be allowed to return sizeof(data_type) bytes to the user.
+func ioR(t, nr, size uintptr) uintptr {
 	return ioc(directionRead, t, nr, size)
 }
 
-// IoW used for an ioctl that writes data to the device driver.
-func IoW(t, nr, size uintptr) uintptr {
+// ioW used for an ioctl that writes data to the device driver.
+func ioW(t, nr, size uintptr) uintptr {
 	return ioc(directionWrite, t, nr, size)
 }
 
-// IoWR  a combination of IoR and IoW. That is, data is both written to the driver and then read back from the driver by the client.
-func IoWR(t, nr, size uintptr) uintptr {
+// ioWR  a combination of ioR and ioW. That is, data is both written to the driver and then read back from the driver by the client.
+func ioWR(t, nr, size uintptr) uintptr {
 	return ioc(directionRead|directionWrite, t, nr, size)
-}
-
-// Ioctl simplified ioct call
-func Ioctl(fd, op, arg uintptr) error {
-	_, _, ep := syscall.Syscall(syscall.SYS_IOCTL, fd, op, arg)
-	if ep != 0 {
-		return syscall.Errno(ep)
-	}
-	return nil
 }
