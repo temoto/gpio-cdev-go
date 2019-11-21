@@ -23,7 +23,8 @@ func ioc(dir, t, nr, size uintptr) uintptr {
 }
 
 // ioNone used for a simple ioctl that sends nothing but the type and number, and receives back nothing but an (integer) retval.
-func ioNone(t, nr uintptr) uintptr { //lint:ignore U1000 unused
+//lint:ignore U1000 unused
+func ioNone(t, nr uintptr) uintptr {
 	return ioc(directionNone, t, nr, 0)
 }
 
@@ -33,7 +34,8 @@ func ioR(t, nr, size uintptr) uintptr {
 }
 
 // ioW used for an ioctl that writes data to the device driver.
-func ioW(t, nr, size uintptr) uintptr { //lint:ignore U1000 unused
+//lint:ignore U1000 unused
+func ioW(t, nr, size uintptr) uintptr {
 	return ioc(directionWrite, t, nr, size)
 }
 
