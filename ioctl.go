@@ -7,12 +7,6 @@ const (
 	typeBits      = 8
 	numberBits    = 8
 	sizeBits      = 14
-	directionBits = 2
-
-	typeMask      = (1 << typeBits) - 1
-	numberMask    = (1 << numberBits) - 1
-	sizeMask      = (1 << sizeBits) - 1
-	directionMask = (1 << directionBits) - 1
 
 	directionNone  = 0
 	directionWrite = 1

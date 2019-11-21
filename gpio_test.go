@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type tConfig struct {
@@ -65,13 +66,13 @@ func TestGPIOConfig(t *testing.T) {
 
 func TestGPIO(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 	if !testConfig.hasGpio {
 		t.Skip("gpio test requires gpio")
 	}
 	chiper, err := Open(testConfig.gpioDev, "go-test")
-	if !assert.Nil(err, "Open should succeed") {
-		t.FailNow()
-	}
+	require.NoError(err, "Open should succeed")
+
 	defer chiper.Close()
 	info := chiper.Info()
 	assert.NotEqual(
@@ -81,18 +82,16 @@ func TestGPIO(t *testing.T) {
 	)
 
 	lineInfo, err := chiper.LineInfo(uint32(testConfig.gpioIn))
-	assert.Nil(err, "LineInfo should succeed")
+	assert.NoError(err, "LineInfo should succeed")
 	assert.NotNil(lineInfo)
 	// we dont know the name beforehand to check it
 	//assert.Equal(strings.TrimRight(string(lineInfo.Name[:]),"\x00"), "someval")
 
 	readLines, err := chiper.OpenLines(GPIOHANDLE_REQUEST_INPUT, "go-test-in", uint32(testConfig.gpioIn))
-	if !assert.Nil(err, "OpenLines should succeed") {
-		t.FailNow()
-	}
+	require.NoError(err, "OpenLines should succeed")
 	defer readLines.Close()
 	data, err := readLines.Read()
-	assert.Nil(err, "Read should succeed")
+	assert.NoError(err, "Read should succeed")
 	t.Logf("read: %v", data.Values[0])
 
 	if !testConfig.hasLoopback {
@@ -100,62 +99,54 @@ func TestGPIO(t *testing.T) {
 	}
 
 	chiper2, err := Open(testConfig.gpioDev, "go-test-write")
-	if !assert.Nil(err, "Open should succeed") {
-		t.FailNow()
-	}
+	require.NoError(err, "Open should succeed")
 	defer chiper2.Close()
 
 	writeLines, err := chiper2.OpenLines(GPIOHANDLE_REQUEST_OUTPUT, "go-test-out", uint32(testConfig.gpioOut))
-	if !assert.Nil(err, "OpenLines should succeed") {
-		t.FailNow()
-	}
+	require.NoError(err, "OpenLines should succeed")
+
 	defer writeLines.Close()
 	writeLines.SetBulk(0)
 
 	read1, err := readLines.Read()
-	assert.Nil(err, "Read should succeed")
+	assert.NoError(err, "Read should succeed")
 	t.Logf("read: %v", read1.Values[0])
 
 	writeLines.SetBulk(1)
 	err = writeLines.Flush()
-	assert.Nil(err, "Flush should succeed")
+	assert.NoError(err, "Flush should succeed")
 
 	read2, err := readLines.Read()
-	assert.Nil(err, "Read should succeed")
+	assert.NoError(err, "Read should succeed")
 	t.Logf("read: %v", read2.Values[0])
 	assert.NotEqual(read1.Values[0], read2.Values[0], "line state should change")
 
 	writeLines.SetBulk(0)
 	err = writeLines.Flush()
-	assert.Nil(err, "Flush should succeed")
+	assert.NoError(err, "Flush should succeed")
 	//time.Sleep(time.Millisecond*100)
 	read3, err := readLines.Read()
-	assert.Nil(err, "Read should succeed")
+	assert.NoError(err, "Read should succeed")
 	t.Logf("read: %v", read3.Values[0])
 	assert.Equal(read1.Values[0], read3.Values[0], "line state be back to 0")
 }
 
 func TestGPIOEvent(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 	if !testConfig.hasLoopback {
 		t.Skip("event test requires loopback")
 		return
 	}
 	chiper1, err := Open(testConfig.gpioDev, "go-test-ev-write")
-	if !assert.Nil(err) {
-		t.FailNow()
-	}
+	require.NoError(err)
 	defer chiper1.Close()
 	chiper2, err := Open(testConfig.gpioDev, "go-test-ev-read")
-	if !assert.Nil(err) {
-		t.FailNow()
-	}
+	require.NoError(err)
 	defer chiper2.Close()
 
 	writeLines, err := chiper1.OpenLines(GPIOHANDLE_REQUEST_OUTPUT, "go-test-ev-out", testConfig.gpioOut)
-	if !assert.Nil(err) {
-		t.FailNow()
-	}
+	require.NoError(err)
 	defer writeLines.Close()
 	writeLines.SetBulk(0)
 	writeLines.Flush()
@@ -166,9 +157,7 @@ func TestGPIOEvent(t *testing.T) {
 		GPIOEVENT_REQUEST_RISING_EDGE,
 		"event-read",
 	)
-	if !assert.Nil(err) {
-		t.FailNow()
-	}
+	require.NoError(err)
 	defer ev.Close()
 	timeStart := time.Now()
 	t.Logf("setting event trigger in 10ms")
@@ -179,7 +168,7 @@ func TestGPIOEvent(t *testing.T) {
 	}()
 	t.Logf("setting wait for 10s")
 	evData, err := ev.Wait(time.Second * 10)
-	assert.Nil(err, "Wait should succeed")
+	assert.NoError(err, "Wait should succeed")
 	timeDiff := time.Since(timeStart)
 	t.Logf("triggered after %s", timeDiff)
 	t.Logf("event: %+v", evData)
