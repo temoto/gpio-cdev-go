@@ -19,13 +19,13 @@ Ultimate success would be to merge this functionality into periph.io lib.
 
 * get a 2 free GPIO pins
 * jumper them
-* set environment variables:
+* set environment variables and run tests
 ```
 export GPIO_TEST_DEV="/dev/gpiochip0"
 export GPIO_TEST_PIN="19"
 export GPIO_TEST_PIN_LOOP="16"
+go test ./...
 ```
-* run tests
 
 # Flair
 
