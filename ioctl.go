@@ -4,9 +4,9 @@ package gpio
 // https://github.com/paypal/gatt/commit/ffdee90ddb4ade889d993e0fd82afcc47fe65c4d#diff-6580ad406a4f6ab990f69b982bdc945a
 
 const (
-	typeBits      = 8
-	numberBits    = 8
-	sizeBits      = 14
+	typeBits   = 8
+	numberBits = 8
+	sizeBits   = 14
 
 	directionNone  = 0
 	directionWrite = 1
@@ -23,7 +23,7 @@ func ioc(dir, t, nr, size uintptr) uintptr {
 }
 
 // ioNone used for a simple ioctl that sends nothing but the type and number, and receives back nothing but an (integer) retval.
-func ioNone(t, nr uintptr) uintptr {
+func ioNone(t, nr uintptr) uintptr { //lint:ignore U1000 unused
 	return ioc(directionNone, t, nr, 0)
 }
 
@@ -33,7 +33,7 @@ func ioR(t, nr, size uintptr) uintptr {
 }
 
 // ioW used for an ioctl that writes data to the device driver.
-func ioW(t, nr, size uintptr) uintptr {
+func ioW(t, nr, size uintptr) uintptr { //lint:ignore U1000 unused
 	return ioc(directionWrite, t, nr, size)
 }
 
