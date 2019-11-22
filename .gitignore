@@ -6,6 +6,7 @@
 *.log
 *.out
 *.so
+*.tags*
 *.test
 app
 bzImage

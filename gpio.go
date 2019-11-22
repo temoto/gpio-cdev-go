@@ -17,7 +17,7 @@ type chip struct {
 
 // The entry point to this library.
 // `path` is likely "/dev/gpiochipN"
-// `defaultConsumer` will be used in absense of more specific consumer label
+// `defaultConsumer` will be used in absence of more specific consumer label
 //   to OpenLines/GetLineEvent.
 // Makes two syscalls: open(path), ioctl(GET_CHIPINFO)
 // You must call Chiper.Close()
