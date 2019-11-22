@@ -30,7 +30,7 @@ func (c *chip) GetLineEvent(line uint32, flag RequestFlag, events EventFlag, con
 		return nil, err
 	}
 
-	if err := syscall.SetNonblock(req.Fd, true); err != nil {
+	if err := syscall.SetNonblock(int(req.Fd), true); err != nil {
 		c.fa.decref()
 		err = errors.Annotate(err, "SetNonblock")
 		return nil, err

@@ -92,7 +92,7 @@ type HandleRequest struct {
 	// if successful this field will contain a valid anonymous file handle
 	// after a GPIO_GET_LINEHANDLE_IOCTL operation, zero or negative value
 	// means error
-	Fd int
+	Fd int32
 }
 
 // struct gpiohandle_data - Information of values on a GPIO handle
@@ -111,6 +111,7 @@ const (
 )
 
 // struct gpioevent_request - Information about a GPIO event request
+
 type EventRequest struct {
 	// the desired line to subscribe to events from, specified by
 	// offset index for the associated GPIO device
@@ -130,7 +131,7 @@ type EventRequest struct {
 
 	// if successful this field will contain a valid anonymous file handle
 	// after a GPIO_GET_LINEEVENT_IOCTL operation, zero or negative value means error
-	Fd int
+	Fd int32
 }
 
 type EventID uint32
@@ -152,23 +153,23 @@ type EventData struct {
 }
 
 func RawGetChipInfo(fd int, arg *ChipInfo) error {
-	return ioctl(fd, uintptr(GPIO_GET_CHIPINFO_IOCTL), uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIO_GET_CHIPINFO_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawGetLineInfo(fd int, arg *LineInfo) error {
-	return ioctl(fd, uintptr(GPIO_GET_LINEINFO_IOCTL), uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIO_GET_LINEINFO_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawGetLineHandle(fd int, arg *HandleRequest) error {
-	return ioctl(fd, uintptr(GPIO_GET_LINEHANDLE_IOCTL), uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawGetLineEvent(fd int, arg *EventRequest) error {
-	return ioctl(fd, uintptr(GPIO_GET_LINEEVENT_IOCTL), uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIO_GET_LINEEVENT_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawGetLineValues(fd int, arg *HandleData) error {
-	return ioctl(fd, uintptr(GPIOHANDLE_GET_LINE_VALUES_IOCTL), uintptr(unsafe.Pointer(arg)))
+	return ioctl(fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, uintptr(unsafe.Pointer(arg)))
 }
 
 func RawSetLineValues(fd int, arg *HandleData) error {
