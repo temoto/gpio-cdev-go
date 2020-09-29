@@ -177,7 +177,11 @@ func RawSetLineValues(fd int, arg *HandleData) error {
 }
 
 func ioctl(fd int, op, arg uintptr) error {
+retry:
 	r, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), op, arg)
+	if errno == syscall.EINTR {
+		goto retry
+	}
 	if errno != 0 {
 		err := os.NewSyscallError("SYS_IOCTL", errno)
 		// log.Printf("ioctl fd=%d op=%x arg=%x err=%v", fd, op, arg, err)
